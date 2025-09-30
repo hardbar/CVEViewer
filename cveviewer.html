@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Vulnerability Dashboard — Compact + DnD + Modal (Bootstrap Controls)</title>
+
+<!-- Bootstrap 5.3 (layout + uniform control sizing) -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<style>
+  :root{
+    --bg:#0b0c0f; --panel:#11131a; --text:#e9edf1; --muted:#a9b1bb; --border:#232735;
+    --chip:#1a2030; --chip-text:#cbd5e1; --table-stripe:#0f1320; --hover:#0f2336;
+    --ok:#25c2a0; --warn:#ffb020; --bad:#ff5a5a; --link:#6cb8ff;
+    --btn:#1a2030; --btn-text:#dbe4ee; --shadow:0 6px 20px rgba(0,0,0,.25);
+    --card-grid-label:#9aa4b2;
+  }
+  [data-theme="light"]{
+    --bg:#f6f8fc; --panel:#fff; --text:#0d1321; --muted:#485568; --border:#e7ebf3;
+    --chip:#eef2fb; --chip-text:#2b3240; --table-stripe:#f8faff; --hover:#e6f2ff;
+    --btn:#f1f4fb; --btn-text:#0d1321; --shadow:0 4px 16px rgba(10,12,20,.08);
+    --card-grid-label:#5b6574;
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Arial; background:var(--bg); color:var(--text)}
+  header{
+    position:sticky; top:0; z-index:6; backdrop-filter:saturate(1.2) blur(6px);
+    background: color-mix(in oklab, var(--bg), transparent 10%);
+    border-bottom:1px solid var(--border);
+  }
+  .wrap{max-width:1300px; margin:0 auto; padding:10px 16px}
+  .rowx{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .title{font-weight:700; letter-spacing:.2px; font-size:18px}
+  .spacer{flex:1}
+  .header-info{display:flex; gap:10px; align-items:center; flex-wrap:wrap; color:var(--muted); font-size:12px}
+  .header-info .pill{background:var(--chip); border:1px solid var(--border); color:var(--chip-text); padding:4px 8px; border-radius:999px}
+
+  .panel{background:var(--panel); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow)}
+  .controls{margin:12px auto}
+  .controls.collapsed .card{display:none}
+  .controls .topbar{display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--border)}
+
+  /* Make Bootstrap controls uniform & dense inside panel */
+  .controls .form-control,
+  .controls .form-select,
+  .controls .btn { height: 38px; }
+  .controls .form-label { margin-bottom:.25rem; font-size: .82rem; }
+  .controls .card { background:var(--panel); border-color:var(--border); }
+  .controls .card .btn { background:var(--btn); color:var(--btn-text); border-color:var(--border); }
+  .controls .btn.btn-primary { background:#4cc2ff; border-color:#4cc2ff; color:#0b0c0f; }
+  .controls .btn.btn-secondary { background:#7c5cff; border-color:#7c5cff; }
+  .controls .btn.btn-outline-secondary { background:transparent; color:var(--text); border-color:var(--border); }
+
+  /* Equal-width feel for filters */
+  @media (min-width: 992px){
+    .controls .filter-col { flex:0 0 22%; max-width:22%; } /* ~4 per row */
+  }
+
+  .status{font-size:12px; color:var(--muted); padding:8px 12px}
+
+  .toolbar{display:flex; gap:8px; align-items:center; justify-content:space-between; padding:8px 12px; border-bottom:1px solid var(--border)}
+  .toolbar .left, .toolbar .right{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 8px; border-radius:999px;
+    background:var(--chip); color:var(--chip-text); border:1px solid var(--border); font-size:12px}
+
+  table{width:100%; border-collapse:collapse}
+  th, td{padding:10px 8px; text-align:left; border-bottom:1px solid var(--border); vertical-align:top}
+  tbody tr:nth-child(odd){background:var(--table-stripe)}
+  tbody tr:hover{background:var(--hover)}
+  th .sortable{cursor:pointer; user-select:none}
+  th .sortable:after{content:"↕"; opacity:.5; margin-left:6px; font-size:11px}
+  .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+  .badge-tag{padding:3px 8px; border-radius:999px; font-size:12px; font-weight:600}
+  .sev-critical{background:color-mix(in oklab, var(--bad), transparent 75%); color:var(--bad)}
+  .sev-high{background:color-mix(in oklab, var(--warn), transparent 75%); color:var(--warn)}
+  .sev-medium{background:color-mix(in oklab, #e6a700, transparent 80%); color:#b37600}
+  .sev-low{background:color-mix(in oklab, var(--ok), transparent 75%); color:#1aa382}
+  .sev-info{background:color-mix(in oklab, #4cc2ff, transparent 75%); color:#1b97cf}
+  .sev-na{background:color-mix(in oklab, var(--muted), transparent 75%); color:var(--muted)}
+  .desc{color:var(--muted); font-size:12px; line-height:1.45; margin-top:4px}
+
+  .cards{display:grid; grid-template-columns: repeat( auto-fill, minmax(340px,1fr) ); gap:10px; padding:12px}
+  .cardx{border:1px solid var(--border); border-radius:12px; padding:10px; background:var(--panel); cursor:pointer}
+  .cardx:hover{outline:2px solid color-mix(in oklab, var(--link), transparent 70%)}
+  .cardx h4{margin:6px 0 8px; font-size:14px}
+  .kv{display:grid; grid-template-columns:160px 1fr; gap:6px 10px; font-size:12px; margin-top:8px}
+  .kv div:nth-child(odd){color:var(--card-grid-label)}
+  .kv div:nth-child(even){word-break:break-word}
+
+  .quickfilters input, .quickfilters select{height:28px; font-size:12px; padding:4px 6px}
+
+  .pagination{display:flex; gap:8px; align-items:center; padding:8px 12px; border-top:1px solid var(--border)}
+  .muted{color:var(--muted)}
+  a{color:var(--link); text-decoration:none}
+  .right-align{margin-left:auto}
+
+  /* Modal */
+  .modal-backdropx{
+    position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; z-index:20;
+    align-items:center; justify-content:center; padding:16px;
+  }
+  .modalx{max-width:900px; width:100%; background:var(--panel); color:var(--text); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow)}
+  .modalx header{display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--border)}
+  .modalx header h3{margin:0; font-size:15px}
+  .modalx .body{max-height:70vh; overflow:auto; padding:12px}
+  .modalx .actions{display:flex; gap:8px; justify-content:flex-end; padding:10px 12px; border-top:1px solid var(--border)}
+  pre{white-space:pre-wrap; word-break:break-word; background:var(--chip); border:1px solid var(--border); border-radius:8px; padding:10px}
+  .dragging{opacity:.6}
+
+  /* Pretty modal view */
+  .prettykv{display:grid; grid-template-columns:200px 1fr; gap:8px 12px; font-size:13px}
+  .prettykv .k{color:var(--card-grid-label)}
+  .prettykv .v{word-break:break-word}
+  .prettykv .badge-tag{display:inline-block; margin-top:2px}
+  .prettykv pre{margin:0}
+
+  @media (max-width: 980px){
+    .kv{grid-template-columns:120px 1fr}
+    .prettykv{grid-template-columns:140px 1fr}
+  }
+</style>
+</head>
+<body>
+<header class="panel">
+  <div class="wrap rowx">
+    <div class="title">Vulnerability Dashboard — Compact + DnD + Modal</div>
+    <div class="spacer"></div>
+    <div class="header-info">
+      <span class="pill" id="todayPill">Today: —</span>
+      <span class="pill" id="lastFetchPill">Last fetch: —</span>
+      <button id="toggleControls" class="btn btn-sm" title="Collapse/Expand controls">▾ Controls</button>
+      <button id="themeToggle" class="btn btn-sm" title="Toggle theme">🌗 Theme</button>
+    </div>
+  </div>
+</header>
+
+<!-- Controls: Bootstrap layout -->
+<section class="panel controls p-2" id="controlsPanel">
+  <div class="topbar">
+    <strong class="small">Controls</strong>
+    <div class="spacer"></div>
+    <div class="badge text-bg-light">Note: browsers may ignore <code>User-Agent</code> &amp; <code>Accept-Encoding</code>. <b>X-Pdcp-Key</b> is applied.</div>
+  </div>
+
+  <div class="px-3 py-2">
+    <!-- Data source -->
+    <div class="card mb-2">
+      <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-lg-6 filter-col">
+            <label for="apiUrl" class="form-label small mb-1">API URL</label>
+            <input id="apiUrl" type="text" class="form-control" placeholder="https://api.example.com/vulns?limit=500">
+          </div>
+          <div class="col-6 col-lg-3 filter-col">
+            <label for="apiKey" class="form-label small mb-1">API KEY</label>
+            <input id="apiKey" type="text" class="form-control" placeholder="Your API key">
+          </div>
+          <div class="col-6 col-lg-3 d-flex gap-2 justify-content-end">
+            <button id="fetchBtn" class="btn btn-primary w-100">Fetch</button>
+            <button id="saveCredsBtn" class="btn btn-outline-secondary w-100">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card mb-2">
+      <div class="card-body py-2">
+        <div class="row g-2">
+          <div class="col-12 col-lg-3 filter-col">
+            <label for="fileInput" class="form-label small mb-1">Upload JSON</label>
+            <input id="fileInput" type="file" accept=".json,application/json" class="form-control">
+          </div>
+          <div class="col-12 col-lg-5 filter-col">
+            <label for="searchBox" class="form-label small mb-1">Search</label>
+            <input id="searchBox" type="text" class="form-control" placeholder="CVE, name, description, CWE...">
+          </div>
+          <div class="col-6 col-lg-2 filter-col">
+            <label for="severityFilter" class="form-label small mb-1">Severity</label>
+            <select id="severityFilter" class="form-select">
+              <option value="">All</option><option>critical</option><option>high</option>
+              <option>medium</option><option>low</option><option>info</option><option>n/a</option>
+            </select>
+          </div>
+          <div class="col-3 col-lg-1 filter-col">
+            <label for="pocFilter" class="form-label small mb-1">POC</label>
+            <select id="pocFilter" class="form-select"><option value="any">Any</option><option value="yes">Yes</option><option value="no">No</option></select>
+          </div>
+          <div class="col-3 col-lg-1 filter-col">
+            <label for="kevFilter" class="form-label small mb-1">KEV</label>
+            <select id="kevFilter" class="form-select"><option value="any">Any</option><option value="yes">Yes</option><option value="no">No</option></select>
+          </div>
+
+          <div class="col-6 col-lg-2 filter-col">
+            <label class="form-label small mb-1">Age</label>
+            <div class="input-group">
+              <select id="ageOp" class="form-select" style="max-width:80px">
+                <option value="">—</option><option value="lte">≤</option><option value="eq">=</option><option value="gte">≥</option>
+              </select>
+              <input id="ageValue" type="number" class="form-control" placeholder="days" min="0">
+            </div>
+          </div>
+          <div class="col-6 col-lg-2 filter-col">
+            <label for="rowsPerPage" class="form-label small mb-1">Rows / page</label>
+            <select id="rowsPerPage" class="form-select">
+              <option>10</option><option selected>25</option><option>50</option><option>100</option><option value="all">All</option>
+            </select>
+          </div>
+          <div class="col-6 col-lg-2 filter-col">
+            <label for="viewMode" class="form-label small mb-1">View</label>
+            <select id="viewMode" class="form-select"><option value="table" selected>Table</option><option value="card">Cards</option></select>
+          </div>
+          <div class="col-6 col-lg-2 filter-col">
+            <label for="toggleDesc" class="form-label small mb-1">Descriptions</label>
+            <select id="toggleDesc" class="form-select"><option value="on" selected>On</option><option value="off">Off</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Columns & views -->
+    <div class="card mb-2">
+      <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-lg-6 d-flex gap-2">
+            <select id="savedViewsSelect" class="form-select" aria-label="Saved views">
+              <option value="">— Select —</option>
+            </select>
+            <button id="loadViewBtn" class="btn btn-secondary">Load</button>
+            <button id="deleteViewBtn" class="btn btn-outline-secondary">Delete</button>
+          </div>
+          <div class="col-12 col-lg-6 d-flex gap-2 align-items-stretch">
+            <input id="viewName" type="text" class="form-control" placeholder="View name">
+            <button id="saveViewBtn" class="btn btn-primary">Save</button>
+
+            <!-- Columns dropdown with checkboxes; keep open on clicks -->
+            <div class="dropdown ms-auto" data-bs-auto-close="outside">
+              <button id="columnsBtn" class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Columns</button>
+              <div id="columnsMenu" class="dropdown-menu p-2" style="min-width:260px;max-height:320px;overflow:auto">
+                <div class="d-flex gap-2 mb-2">
+                  <button id="selectAllCols" class="btn btn-sm btn-light">All</button>
+                  <button id="clearAllCols" class="btn btn-sm btn-light">Clear</button>
+                  <button id="defaultCols" class="btn btn-sm btn-light" title="Restore default 8">Default</button>
+                </div>
+                <div id="columnsList"><!-- checkboxes injected --></div>
+                <div class="pt-2 border-top mt-2">
+                  <small class="text-secondary">Tip: drag table headers to reorder.</small>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-12 d-flex gap-2 justify-content-end">
+            <button id="resetBtn" class="btn btn-outline-secondary">Reset</button>
+            <button id="exportCsvBtn" class="btn btn-secondary">Export CSV</button>
+            <button id="exportJsonBtn" class="btn btn-secondary">Export JSON</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="statusMsg" class="small text-secondary px-1 py-1"></div>
+  </div>
+</section>
+
+<!-- Data Toolbar -->
+<section class="panel">
+  <div class="toolbar">
+    <div class="left">
+      <span id="rowCounter" class="pill">Rows: 0</span>
+      <span id="rangeInfo" class="pill">Showing 0–0 of 0</span>
+      <span class="pill">Sort:
+        <select id="sortKey" class="form-select form-select-sm" style="width:auto; display:inline-block">
+          <option value="created_at">Date Added</option>
+          <option value="age_in_days">Age (days)</option>
+          <option value="cvss_score">CVSS</option>
+          <option value="severity">Severity</option>
+          <option value="cve_id">CVE</option>
+        </select>
+        <select id="sortDir" class="form-select form-select-sm" style="width:auto; display:inline-block">
+          <option value="desc">Desc</option><option value="asc">Asc</option>
+        </select>
+      </span>
+    </div>
+    <div class="right">
+      <span class="muted" id="footerNote"></span>
+    </div>
+  </div>
+
+  <!-- TABLE VIEW -->
+  <div id="tableWrap" style="overflow:auto">
+    <table>
+      <thead>
+        <tr id="theadRow"><!-- injected --></tr>
+        <tr id="quickFilterRow" class="quickfilters"><!-- injected --></tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- CARD VIEW -->
+  <div id="cardsWrap" class="cards" hidden></div>
+
+  <div class="pagination">
+    <button id="prevBtn" class="btn btn-outline-secondary">Prev</button>
+    <span id="pageInfo" class="muted">Page 1</span>
+    <button id="nextBtn" class="btn btn-outline-secondary">Next</button>
+  </div>
+</section>
+
+<!-- MODAL -->
+<div id="modalBackdrop" class="modal-backdropx">
+  <div class="modalx">
+    <header>
+      <h3 id="modalTitle">Record</h3>
+      <div class="spacer"></div>
+
+      <!-- NEW: Raw/Pretty toggle -->
+      <div class="form-check form-switch me-2">
+        <input class="form-check-input" type="checkbox" id="rawToggle">
+        <label class="form-check-label" for="rawToggle">Raw JSON</label>
+      </div>
+
+      <button id="copyJsonBtn" class="btn btn-sm">Copy JSON</button>
+      <button id="closeModalBtn" class="btn btn-sm btn-outline-secondary">Close</button>
+    </header>
+    <div class="body">
+      <!-- Pretty, human-readable container -->
+      <div id="modalPretty" class="prettykv"></div>
+      <!-- Raw JSON container -->
+      <pre id="modalContent" hidden>{}</pre>
+    </div>
+    <div class="actions">
+      <button id="downloadJsonBtn" class="btn btn-sm">Download JSON</button>
+    </div>
+  </div>
+</div>
+
+<script>
+;(() => {
+  // ======= Defaults / labels =======
+  const DEFAULT_COLUMNS = {
+    cve_id:true, name:true, severity:true, cvss_score:true,
+    age_in_days:true, created_at:true, is_poc:true, is_kev:true
+  };
+  const FRIENDLY = {
+    cve_id:'CVE', name:'Name', severity:'Severity', cvss_score:'CVSS', age_in_days:'Age (d)',
+    created_at:'Created', updated_at:'Updated', description:'Description',
+    is_poc:'POC', is_kev:'KEV', is_remote:'Remote', is_auth:'Auth Required',
+    is_exploit_seen:'Exploit Seen', is_patch_available:'Patch Available',
+    impact:'Impact', requirements:'Requirements',
+    vulnerability_impact:'Vulnerability impact', vulnerability_type:'Vulnerability type',
+    cvss_metrics:'CVSS Vector', cwe:'CWE', citations:'Citations', remediation:'Remediation',
+    vuln_status:'Status', requirement_type:'Req Type', assignee:'Assignee',
+    cve_created_at:'CVE Created', cve_updated_at:'CVE Updated'
+  };
+  const titleCase = s => s.replace(/[_-]+/g,' ').replace(/\b\w/g, m=>m.toUpperCase());
+
+  // ======= State =======
+  const state = {
+    raw: [], rows: [],
+    page: 1, rowsPerPage: 25,
+    sortKey: 'created_at', sortDir: 'desc',
+    view: 'table',
+    ui: { showDesc: true, controlsCollapsed: false, lastFetch: null },
+    columns: {...DEFAULT_COLUMNS},
+    columnOrder: Object.keys(DEFAULT_COLUMNS),
+    allKeys: new Set(Object.keys(DEFAULT_COLUMNS)),
+    filters: { search:'', severity:'', poc:'any', kev:'any', ageOp:'', ageValue:'' },
+    quick: {},
+    creds: { url:'', key:'' },
+    views: {},
+    modalItem: null
+  };
+
+  // ======= Elements =======
+  const $ = q => document.querySelector(q);
+  const apiUrlEl = $('#apiUrl'), apiKeyEl = $('#apiKey'),
+        fetchBtn = $('#fetchBtn'), saveCredsBtn = $('#saveCredsBtn'),
+        fileInput = $('#fileInput');
+  const searchBox = $('#searchBox'), severityFilter = $('#severityFilter'),
+        pocFilter = $('#pocFilter'), kevFilter = $('#kevFilter'),
+        ageOp = $('#ageOp'), ageValue = $('#ageValue'),
+        rowsPerPageEl = $('#rowsPerPage'), viewModeEl = $('#viewMode'), descToggleEl = $('#toggleDesc');
+  const sortKeyEl = $('#sortKey'), sortDirEl = $('#sortDir');
+  const rowCounter = $('#rowCounter'), rangeInfo = $('#rangeInfo'), pageInfo = $('#pageInfo'), footerNote = $('#footerNote');
+  const theadRow = $('#theadRow'), qfRow = $('#quickFilterRow'), tbody = $('#tbody'),
+        tableWrap = $('#tableWrap'), cardsWrap = $('#cardsWrap');
+  const prevBtn = $('#prevBtn'), nextBtn = $('#nextBtn'), statusMsg = $('#statusMsg');
+  const themeToggle = $('#themeToggle'), toggleControlsBtn = $('#toggleControls'), controlsPanel = $('#controlsPanel');
+  const todayPill = $('#todayPill'), lastFetchPill = $('#lastFetchPill');
+
+  // Saved views & columns dropdown
+  const savedViewsSelect = $('#savedViewsSelect'), saveViewBtn = $('#saveViewBtn'),
+        deleteViewBtn = $('#deleteViewBtn'), loadViewBtn = $('#loadViewBtn'), viewNameEl = $('#viewName');
+  const columnsList = $('#columnsList');
+  const selectAllCols = $('#selectAllCols'), clearAllCols = $('#clearAllCols'), defaultCols = $('#defaultCols');
+
+  // Modal
+  const modalBackdrop = $('#modalBackdrop'), closeModalBtn = $('#closeModalBtn'),
+        modalTitle = $('#modalTitle'), modalContent = $('#modalContent'),
+        modalPretty = $('#modalPretty'), rawToggle = $('#rawToggle'),
+        copyJsonBtn = $('#copyJsonBtn'), downloadJsonBtn = $('#downloadJsonBtn');
+
+  // ======= Persistence =======
+  const LS_KEY = 'vulnDashCompactDnDModalBootstrap';
+  function loadPrefs(){
+    try{
+      const saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+      if(saved.creds) state.creds = saved.creds;
+      if(saved.theme) document.documentElement.setAttribute('data-theme', saved.theme);
+      if(saved.views) state.views = saved.views;
+      if(saved.columns) state.columns = saved.columns;
+      if(saved.columnOrder) state.columnOrder = saved.columnOrder;
+      if(saved.ui) state.ui = {...state.ui, ...saved.ui};
+    }catch(e){}
+    apiUrlEl.value = state.creds.url || '';
+    apiKeyEl.value = state.creds.key || '';
+    descToggleEl.value = state.ui.showDesc ? 'on':'off';
+    rowsPerPageEl.value = String(state.rowsPerPage);
+    controlsPanel.classList.toggle('collapsed', !!state.ui.controlsCollapsed);
+    updateDates();
+    updateViewsUI();
+  }
+  function savePrefs(){
+    const theme = document.documentElement.getAttribute('data-theme') || 'light';
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      creds: state.creds, theme, views: state.views, columns: state.columns, columnOrder: state.columnOrder, ui: state.ui
+    }));
+  }
+  function updateViewsUI(){
+    savedViewsSelect.innerHTML = '<option value="">— Select —</option>' +
+      Object.keys(state.views).sort().map(n=>`<option value="${n}">${n}</option>`).join('');
+  }
+  function updateDates(){
+    const now = new Date();
+    todayPill.textContent = 'Today: ' + now.toISOString().slice(0,10);
+    lastFetchPill.textContent = 'Last fetch: ' + (state.ui.lastFetch ? state.ui.lastFetch : '—');
+  }
+
+  // ======= Utils =======
+  const esc = s => (s==null ? '' : String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'));
+  const fmtDate = s => { if(!s) return ''; const d=new Date(s); return isNaN(+d)? s : d.toISOString().slice(0,10); };
+  const sevClass = s => {
+    const v = (s||'').toLowerCase();
+    return v==='critical'?'sev-critical':v==='high'?'sev-high':v==='medium'?'sev-medium':v==='low'?'sev-low':v==='info'?'sev-info':'sev-na';
+  };
+  function isLikelyDateKey(k){ return /(_at|date)/i.test(k); }
+  function cmp(a,b,key,dir){
+    const m = dir==='asc'?1:-1, va=a[key], vb=b[key];
+    if(key==='severity'){
+      const order={critical:5, high:4, medium:3, low:2, info:1, 'n/a':0, '':0};
+      return ((order[(va||'').toLowerCase()]||0) - (order[(vb||'').toLowerCase()]||0))*m;
+    }
+    if(typeof va==='number' && typeof vb==='number') return (va-vb)*m;
+    if(isLikelyDateKey(key)) return ((new Date(va))-(new Date(vb)))*m;
+    return String(va).localeCompare(String(vb))*m;
+  }
+  function summarize(value){
+    if(value==null) return '';
+    if(Array.isArray(value)){
+      if(!value.length) return '';
+      if(typeof value[0] === 'object'){ return esc(JSON.stringify(value.slice(0,3))) + (value.length>3?' …':''); }
+      return esc(value.join(', '));
+    }
+    if(typeof value === 'object'){ try{ return esc(JSON.stringify(value)); }catch(e){ return ''; } }
+    return esc(value);
+  }
+
+  // Pretty modal rendering helpers
+  const IMPORTANT_ORDER = [
+    'cve_id','name','description','impact','requirements','severity','cvss_score','age_in_days',
+    'created_at','is_poc','is_kev','is_remote','is_auth','is_exploit_seen','is_patch_available',
+    'vulnerability_impact','vulnerability_type'
+  ];
+  function prettyValueHTML(k, v){
+    if(v==null) return '<span class="text-secondary">—</span>';
+    if(k==='cvss_score'){
+      return Number.isFinite(v) ? `<span class="mono">${Number(v).toFixed(1)}</span>` : '<span class="text-secondary">—</span>';
+    }
+    if(k==='severity'){
+      const label = esc(v || 'N/A'); return `<span class="badge-tag ${sevClass(v)}">${label}</span>`;
+    }
+    if(typeof v === 'boolean') return v ? 'Yes' : 'No';
+    if(isLikelyDateKey(k)) return `<span class="mono">${esc(fmtDate(v))}</span>`;
+    if(Array.isArray(v)){
+      if(!v.length) return '<span class="text-secondary">—</span>';
+      const prim = v.every(x => (typeof x !== 'object'));
+      if(prim){
+        return esc(v.join(', '));
+      }else{
+        return `<pre>${esc(JSON.stringify(v, null, 2))}</pre>`;
+      }
+    }
+    if(typeof v === 'object') return `<pre>${esc(JSON.stringify(v, null, 2))}</pre>`;
+    return esc(String(v));
+  }
+  function renderPretty(item){
+    // Compose ordered keys: important first, then others (except internal)
+    const others = Object.keys(item).filter(k => !IMPORTANT_ORDER.includes(k) && k !== '__uid');
+    const keys = [...IMPORTANT_ORDER, ...others.sort((a,b)=>labelOf(a).localeCompare(labelOf(b)))];
+    const rows = keys.map(k => {
+      const label = esc(labelOf(k));
+      const value = prettyValueHTML(k, item[k]);
+      return `<div class="k">${label}</div><div class="v">${value}</div>`;
+    }).join('');
+    modalPretty.innerHTML = rows;
+  }
+
+  // Normalize to flat-ish record and attach uid
+  function normalize(any){
+    const arr = Array.isArray(any) ? any : (Array.isArray(any?.results) ? any.results : []);
+    return arr.map((x, i) => {
+      const base = {
+        cve_id: x.cve_id || x.doc_id || '',
+        name: x.name || '',
+        severity: (x.severity ?? x.severity_label ?? '').toString() || 'n/a',
+        cvss_score: Number(x.cvss_score ?? 0),
+        age_in_days: Number(x.age_in_days ?? 0),
+        created_at: x.created_at || x.cve_created_at || '',
+        is_poc: !!x.is_poc, is_kev: !!x.is_kev,
+        is_remote: !!x.is_remote, is_auth: !!x.is_auth,
+        is_exploit_seen: !!x.is_exploit_seen, is_patch_available: !!x.is_patch_available,
+        impact: x.impact || '',
+        requirements: x.requirements || '',
+        vulnerability_impact: x.vulnerability_impact ?? [],
+        vulnerability_type: x.vulnerability_type || '',
+        description: x.description || '',
+        __uid: (x.doc_id||x.cve_id||'uid') + '_' + i
+      };
+      const out = {...base};
+      for(const k of Object.keys(x)){ if(!(k in out)) out[k] = x[k]; }
+      return out;
+    });
+  }
+  function discoverKeys(items){
+    const keys = new Set(state.allKeys);
+    items.forEach(it => Object.keys(it).forEach(k => keys.add(k)));
+    Object.keys(DEFAULT_COLUMNS).forEach(k => keys.add(k));
+    state.allKeys = keys;
+    const missing = Array.from(keys).filter(k => !state.columnOrder.includes(k));
+    state.columnOrder = state.columnOrder.concat(missing);
+  }
+  function labelOf(k){ return FRIENDLY[k] || titleCase(k); }
+
+  // ======= Columns dropdown (Bootstrap menu) =======
+  function renderColumnsMenu(){
+    const keys = Array.from(state.allKeys);
+    const ordered = state.columnOrder.filter(k=>keys.includes(k));
+    columnsList.innerHTML = ordered.map(k => `
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="col-${esc(k)}" data-col="${esc(k)}" ${state.columns[k] ? 'checked':''}>
+        <label class="form-check-label" for="col-${esc(k)}">${esc(labelOf(k))}</label>
+      </div>
+    `).join('');
+    columnsList.querySelectorAll('input[type="checkbox"]').forEach(cb=>{
+      cb.addEventListener('change', ()=>{
+        state.columns[cb.dataset.col] = cb.checked;
+        savePrefs(); render();
+      });
+    });
+  }
+
+  // ======= Header + Quick filter + Drag & Drop =======
+  function renderHeader(){
+    const visible = state.columnOrder.filter(k => state.columns[k]);
+    theadRow.innerHTML = visible.map(k=>{
+      const sortable = ['cve_id','name','severity','cvss_score','age_in_days','created_at'].includes(k);
+      return `<th draggable="true" data-col="${k}" title="Drag to reorder">
+        ${sortable? `<span class="sortable" data-sort="${k}">${esc(labelOf(k))}</span>` : esc(labelOf(k))}
+      </th>`;
+    }).join('');
+
+    // DnD reorder
+    let dragSrc=null;
+    theadRow.querySelectorAll('th').forEach(th=>{
+      th.addEventListener('dragstart', e=>{ dragSrc = th.dataset.col; th.classList.add('dragging'); e.dataTransfer.setData('text/plain', dragSrc); });
+      th.addEventListener('dragend', ()=> th.classList.remove('dragging'));
+      th.addEventListener('dragover', e=>{ e.preventDefault(); });
+      th.addEventListener('drop', e=>{
+        e.preventDefault();
+        const src = dragSrc || e.dataTransfer.getData('text/plain');
+        const dst = th.dataset.col;
+        if(!src || !dst || src===dst) return;
+        const all = state.columnOrder.slice();
+        const srcIdx = all.indexOf(src), dstIdx = all.indexOf(dst);
+        all.splice(srcIdx,1); all.splice(dstIdx,0,src);
+        state.columnOrder = all;
+        savePrefs();
+        render();
+      });
+    });
+
+    // Sorting
+    theadRow.querySelectorAll('.sortable').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const key = el.dataset.sort;
+        if(state.sortKey === key){ state.sortDir = (state.sortDir==='asc' ? 'desc' : 'asc'); }
+        else { state.sortKey = key; state.sortDir='asc'; }
+        sortKeyEl.value = state.sortKey; sortDirEl.value = state.sortDir;
+        applyFilters();
+      });
+    });
+
+    // Quick filters row
+    qfRow.innerHTML = visible.map(k=>{
+      if(k==='severity'){
+        return `<th><select class="form-select form-select-sm" data-qf="${k}">
+          <option value="">All</option>
+          <option>critical</option><option>high</option><option>medium</option><option>low</option><option>info</option><option>n/a</option>
+        </select></th>`;
+      }
+      if(k==='is_poc' || k==='is_kev' || k.startsWith('is_')){
+        return `<th><select class="form-select form-select-sm" data-qf="${k}">
+          <option value="">Any</option><option value="true">True</option><option value="false">False</option>
+        </select></th>`;
+      }
+      if(k==='cvss_score' || k==='age_in_days'){
+        return `<th><input class="form-control form-control-sm" data-qf="${k}" type="text" placeholder="e.g. >7.5" /></th>`;
+      }
+      if(isLikelyDateKey(k)){
+        return `<th><input class="form-control form-control-sm" data-qf="${k}" type="text" placeholder="YYYY-MM-DD" /></th>`;
+      }
+      return `<th><input class="form-control form-control-sm" data-qf="${k}" type="text" placeholder="filter…" /></th>`;
+    }).join('');
+
+    qfRow.querySelectorAll('input,select').forEach(el=>{
+      el.value = state.quick[el.dataset.qf] ?? '';
+      el.addEventListener('input', quickFilterChanged);
+      el.addEventListener('change', quickFilterChanged);
+    });
+  }
+
+  function quickFilterChanged(e){
+    const key = e.target.dataset.qf;
+    state.quick[key] = e.target.value;
+    applyFilters();
+  }
+
+  // ======= Rendering =======
+  function renderTable(){
+    const {slice, start, end, total} = paginate(state.rows);
+    rowCounter.textContent = `Rows: ${slice.length}`;
+    rangeInfo.textContent = `Showing ${total?start:0}–${total?end:0} of ${total}`;
+    pageInfo.textContent = `Page ${state.page} / ${Math.max(1, Math.ceil(total / (state.rowsPerPage==='all'? total : Number(state.rowsPerPage))))}`;
+
+    renderHeader();
+
+    const keys = state.columnOrder.filter(k => state.columns[k]);
+    tbody.innerHTML = slice.map(r => {
+      return `<tr>${
+        keys.map(k=>{
+          const v = r[k];
+          if(k==='severity') return `<td><span class="badge-tag ${sevClass(v)}">${esc(v||'N/A')}</span></td>`;
+          if(k==='cvss_score') return `<td class="mono">${Number.isFinite(v)? Number(v).toFixed(1) : '—'}</td>`;
+          if(k==='created_at' || isLikelyDateKey(k)) return `<td class="mono">${esc(fmtDate(v))}</td>`;
+          if(k==='is_poc' || k==='is_kev' || typeof v === 'boolean') return `<td>${v ? '✅' : '—'}</td>`;
+          if(k==='name'){
+            const desc = state.ui.showDesc ? `<div class="desc">${esc(r.description||'')}</div>` : '';
+            return `<td>${esc(v||'—')}${desc}</td>`;
+          }
+          if(k==='cve_id'){ return `<td class="mono"><a href="#" class="cve-link" data-uid="${esc(r.__uid)}">${esc(v||'—')}</a></td>`; }
+          if(Array.isArray(v) || typeof v === 'object') return `<td>${summarize(v)}</td>`;
+          return `<td>${esc(v ?? '—')}</td>`;
+        }).join('')
+      }</tr>`;
+    }).join('');
+  }
+
+  const CARD_ORDER = [
+    ['cve_id','CVE'],
+    ['name','Name'],
+    ['description','Description'],
+    ['impact','Impact'],
+    ['requirements','Requirements'],
+    ['severity','Severity'],
+    ['cvss_score','CVSS'],
+    ['age_in_days','Age (d)'],
+    ['created_at','Created'],
+    ['is_poc','POC'],
+    ['is_kev','KEV'],
+    ['is_remote','Remote'],
+    ['is_auth','Auth required'],
+    ['is_exploit_seen','Exploit seen'],
+    ['is_patch_available','Patch available'],
+    ['vulnerability_impact','Vulnerability impact'],
+    ['vulnerability_type','Vulnerability type'],
+  ];
+  function renderCards(){
+    const {slice, start, end, total} = paginate(state.rows);
+    rowCounter.textContent = `Rows: ${slice.length}`;
+    rangeInfo.textContent = `Showing ${total?start:0}–${total?end:0} of ${total}`;
+    pageInfo.textContent = `Page ${state.page} / ${Math.max(1, Math.ceil(total / (state.rowsPerPage==='all'? total : Number(state.rowsPerPage))))}`;
+
+    cardsWrap.innerHTML = slice.map(r => {
+      const kv = CARD_ORDER.map(([k,label])=>{
+        let v = r[k];
+        if(k==='cvss_score') v = Number.isFinite(v)? Number(v).toFixed(1) : '—';
+        else if(k==='created_at' || isLikelyDateKey(k)) v = fmtDate(v);
+        else if(typeof v === 'boolean') v = v ? 'Yes' : 'No';
+        else if(Array.isArray(v) || typeof v === 'object') v = summarize(v);
+        if(v==null || v==='') v = '—';
+        return `<div>${esc(label)}</div><div>${esc(v)}</div>`;
+      }).join('');
+      const desc = state.ui.showDesc ? `<div class="desc">${esc(r.description||'')}</div>` : '';
+      return `<article class="cardx" data-uid="${esc(r.__uid)}" title="Click for full JSON">
+        <div class="rowx" style="justify-content:space-between">
+          <span class="mono"><strong>${esc(r.cve_id||'—')}</strong></span>
+          <span class="badge-tag ${sevClass(r.severity)}">${esc(r.severity||'N/A')}</span>
+        </div>
+        <h4>${esc(r.name||'—')}</h4>
+        ${desc}
+        <div class="kv">${kv}</div>
+      </article>`;
+    }).join('');
+  }
+
+  function render(){
+    const {slice} = paginate(state.rows);
+    const total = state.rows.length;
+    footerNote.textContent = total ? '' : 'No results. Load data or adjust filters.';
+    if(state.view==='table'){
+      tableWrap.hidden=false; cardsWrap.hidden=true;
+      renderTable();
+    }else{
+      tableWrap.hidden=true; cardsWrap.hidden=false;
+      renderCards();
+    }
+    const pages = Math.max(1, Math.ceil(total / (state.rowsPerPage==='all'? total : Number(state.rowsPerPage))));
+    prevBtn.disabled = state.page<=1; nextBtn.disabled = state.page>=pages;
+  }
+
+  function paginate(rows){
+    let rpp = state.rowsPerPage;
+    if(rpp==='all' || rpp===0) return {slice: rows, start:1, end:rows.length, total:rows.length};
+    rpp = Number(rpp);
+    const total = rows.length, pages = Math.max(1, Math.ceil(total/rpp));
+    if(state.page>pages) state.page=pages;
+    const s=(state.page-1)*rpp, e=Math.min(s+rpp, total);
+    return {slice: rows.slice(s,e), start:s+1, end:e, total};
+  }
+
+  // ======= Filters / Sort =======
+  function evalQuickFilter(value, q){
+    if(q==null || q==='') return true;
+    const m = q.match(/^\s*(>=|<=|>|<|=)\s*([-+]?\d+(\.\d+)?)\s*$/);
+    if(m && typeof value === 'number'){
+      const op=m[1], num=Number(m[2]);
+      if(op==='>') return value>num;
+      if(op==='>=') return value>=num;
+      if(op==='<') return value<num;
+      if(op==='<=') return value<=num;
+      if(op==='=') return value===num;
+    }
+    if((q==='true'||q==='false') && typeof value === 'boolean'){
+      return (q==='true') === value;
+    }
+    const s = (value==null) ? '' : (typeof value==='object' ? JSON.stringify(value) : String(value));
+    return s.toLowerCase().includes(q.toLowerCase());
+  }
+
+  function applyFilters(){
+    let out = [...state.raw];
+
+    // Global search
+    const q = state.filters.search.trim().toLowerCase();
+    if(q){
+      out = out.filter(r=>Object.keys(r).some(k=>{
+        const v=r[k];
+        if(v==null) return false;
+        if(typeof v === 'string') return v.toLowerCase().includes(q);
+        if(typeof v === 'number') return String(v).includes(q);
+        if(typeof v === 'boolean') return (v? 'true':'false').includes(q);
+        if(Array.isArray(v) || typeof v === 'object') return JSON.stringify(v).toLowerCase().includes(q);
+        return false;
+      }));
+    }
+    // Select filters
+    if(state.filters.severity){
+      const sv=state.filters.severity.toLowerCase();
+      out = out.filter(r => ((r.severity||'').toLowerCase()||'n/a')===sv);
+    }
+    if(state.filters.poc==='yes') out=out.filter(r=>!!r.is_poc);
+    if(state.filters.poc==='no')  out=out.filter(r=>!r.is_poc);
+    if(state.filters.kev==='yes') out=out.filter(r=>!!r.is_kev);
+    if(state.filters.kev==='no')  out=out.filter(r=>!r.is_kev);
+
+    const op=state.filters.ageOp, val=Number(state.filters.ageValue);
+    if(op && Number.isFinite(val)){
+      if(op==='lte') out=out.filter(r=>Number(r.age_in_days)<=val);
+      if(op==='eq')  out=out.filter(r=>Number(r.age_in_days)===val);
+      if(op==='gte') out=out.filter(r=>Number(r.age_in_days)>=val);
+    }
+
+    // Quick per-column filters
+    const qKeys = Object.keys(state.quick).filter(k => state.quick[k]);
+    if(qKeys.length){
+      out = out.filter(row => qKeys.every(k => evalQuickFilter(row[k], state.quick[k])));
+    }
+
+    out.sort((a,b)=>cmp(a,b,state.sortKey,state.sortDir));
+    state.rows = out;
+    state.page = 1;
+    render();
+  }
+
+  // ======= Data loading =======
+  function setStatus(msg, warn=false){ statusMsg.innerHTML = `<span class="pill" style="${warn?'border-color:#ffb020':''}">${esc(msg)}</span>`; }
+  async function fetchFromApi(){
+    const url = apiUrlEl.value.trim(); const key = apiKeyEl.value.trim();
+    if(!url){ setStatus('Please enter an API URL.', true); return; }
+    setStatus('Fetching…');
+
+    const headers = new Headers();
+    headers.set('X-Pdcp-Key', key);
+    try{ headers.set('User-Agent','cvemap-client/1.0'); }catch(e){}
+    try{ headers.set('Accept-Encoding','gzip'); }catch(e){}
+
+    try{
+      const resp = await fetch(url, {headers, cache:'no-store', credentials:'omit'});
+      if(!resp.ok){ setStatus(`HTTP ${resp.status} — ${resp.statusText}`, true); return; }
+      const data = await resp.json();
+      const items = normalize(data);
+      discoverKeys(items);
+      for(const k of state.allKeys){ if(!(k in state.columns)) state.columns[k]=false; }
+      state.raw = items;
+      state.ui.lastFetch = new Date().toLocaleString();
+      updateDates();
+      renderColumnsMenu();
+      setStatus(`Loaded ${items.length} records from API.`);
+      applyFilters();
+      savePrefs();
+    }catch(e){
+      console.error(e);
+      setStatus('Fetch failed. Check CORS/URL/network. (Browsers may restrict some headers set by JS.)', true);
+    }
+  }
+  function loadLocalSample(){
+    fetch('./data.json').then(r=>r.ok?r.json():Promise.reject()).then(json=>{
+      const items = normalize(json);
+      discoverKeys(items);
+      for(const k of state.allKeys){ if(!(k in state.columns)) state.columns[k]=false; }
+      state.raw = items;
+      setStatus(`Loaded ${items.length} records from local data.json.`);
+      renderColumnsMenu();
+      applyFilters();
+    }).catch(()=> setStatus('Tip: Upload JSON or enter an API URL+Key, then Fetch.'));
+  }
+  function handleFileUpload(file){
+    const reader=new FileReader();
+    reader.onload=()=>{
+      try{
+        const data=JSON.parse(reader.result);
+        const items=normalize(data);
+        discoverKeys(items);
+        for(const k of state.allKeys){ if(!(k in state.columns)) state.columns[k]=false; }
+        state.raw=items; setStatus(`Loaded ${items.length} records from file.`);
+        renderColumnsMenu(); applyFilters();
+      }catch(e){ console.error(e); setStatus('Invalid JSON file.', true); }
+    };
+    reader.readAsText(file);
+  }
+
+  // ======= Export =======
+  function download(filename, content, mime){
+    const blob=new Blob([content],{type:mime}); const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},0);
+  }
+  function exportCurrent(scope='page', format='csv'){
+    const {slice}=paginate(state.rows);
+    const rows=(scope==='all')? state.rows : slice;
+    const keys = state.columnOrder.filter(k => state.columns[k]);
+    const data = rows.map(r => { const o={}; keys.forEach(k=> o[k]=r[k]); return o; });
+    const stamp = new Date().toISOString().replaceAll(':','').replaceAll('-','').slice(0,15);
+    if(format==='json'){ download(`export_${scope}_${stamp}.json`, JSON.stringify(data,null,2), 'application/json'); return; }
+    const headers = keys;
+    const csv = [headers.join(',')].concat(data.map(o => headers.map(h=>{
+      const v = o[h]; const s = (v==null)? '' : (typeof v==='object'? JSON.stringify(v) : String(v));
+      return /[",\n]/.test(s) ? `"${s.replaceAll('"','""')}"` : s;
+    }).join(','))).join('\n');
+    download(`export_${scope}_${stamp}.csv`, csv, 'text/csv');
+  }
+
+  // ======= Saved Views =======
+  function serializeView(){
+    return {
+      columns: state.columns,
+      columnOrder: state.columnOrder,
+      filters: state.filters,
+      quick: state.quick,
+      sortKey: state.sortKey, sortDir: state.sortDir,
+      rowsPerPage: state.rowsPerPage, view: state.view,
+      ui: {showDesc: state.ui.showDesc}
+    };
+  }
+  function applyView(v){
+    if(!v) return;
+    state.columns = {...state.columns, ...(v.columns||{})};
+    if(v.columnOrder) state.columnOrder = v.columnOrder;
+    state.filters = {...state.filters, ...(v.filters||{})};
+    state.quick = {...state.quick, ...(v.quick||{})};
+    state.sortKey = v.sortKey ?? state.sortKey;
+    state.sortDir = v.sortDir ?? state.sortDir;
+    state.rowsPerPage = v.rowsPerPage ?? state.rowsPerPage;
+    state.view = v.view ?? state.view;
+    state.ui.showDesc = !!(v.ui?.showDesc ?? state.ui.showDesc);
+
+    // UI sync
+    searchBox.value=state.filters.search; severityFilter.value=state.filters.severity;
+    pocFilter.value=state.filters.poc; kevFilter.value=state.filters.kev;
+    ageOp.value=state.filters.ageOp; ageValue.value=state.filters.ageValue;
+    rowsPerPageEl.value=String(state.rowsPerPage); viewModeEl.value=state.view;
+    descToggleEl.value=state.ui.showDesc?'on':'off';
+    renderColumnsMenu(); applyFilters(); savePrefs();
+  }
+  function saveCurrentView(name){
+    if(!name){ setStatus('Enter a view name first.', true); return; }
+    if(state.views[name] && !confirm(`Overwrite view "${name}"?`)) return;
+    state.views[name]=serializeView(); savePrefs(); updateViewsUI();
+    savedViewsSelect.value=name; setStatus(`Saved view "${name}".`);
+  }
+  function deleteView(name){
+    if(!name||!state.views[name]) return; if(!confirm(`Delete view "${name}"?`)) return;
+    delete state.views[name]; savePrefs(); updateViewsUI(); savedViewsSelect.value=''; setStatus(`Deleted view "${name}".`);
+  }
+
+  // ======= Modal helpers =======
+  function updateModalView(){
+    const item = state.modalItem;
+    if(!item) return;
+    const pretty = JSON.stringify(item, null, 2);
+    if(rawToggle.checked){
+      // Raw JSON view
+      modalContent.textContent = pretty;
+      modalContent.hidden = false;
+      modalPretty.hidden = true;
+    }else{
+      // Pretty, human-readable view
+      renderPretty(item);
+      modalPretty.hidden = false;
+      modalContent.hidden = true;
+    }
+  }
+  function showModalForUid(uid){
+    const item = state.raw.find(r => r.__uid === uid);
+    if(!item) return;
+    state.modalItem = item;
+    modalTitle.textContent = item.cve_id || 'Record';
+    rawToggle.checked = false; // default to pretty view
+    updateModalView();
+    modalBackdrop.style.display = 'flex';
+
+    const rawText = JSON.stringify(item, null, 2);
+    copyJsonBtn.onclick = async () => { try{ await navigator.clipboard.writeText(rawText); }catch{} };
+    downloadJsonBtn.onclick = () => download(`${(item.cve_id||'record')}.json`, rawText, 'application/json');
+  }
+  function hideModal(){ modalBackdrop.style.display = 'none'; }
+
+  // ======= Events =======
+  rawToggle.addEventListener('change', updateModalView);
+
+  fetchBtn.addEventListener('click', fetchFromApi);
+  saveCredsBtn.addEventListener('click', ()=>{ state.creds.url=apiUrlEl.value.trim(); state.creds.key=apiKeyEl.value.trim(); savePrefs(); setStatus('Saved URL & Key locally.'); });
+  fileInput.addEventListener('change', e=>{ const f=e.target.files?.[0]; if(f) handleFileUpload(f); });
+
+  function debounced(fn,delay=250){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),delay); } }
+  searchBox.addEventListener('input', debounced(()=>{ state.filters.search=searchBox.value; applyFilters(); },250));
+  severityFilter.addEventListener('change', ()=>{ state.filters.severity=severityFilter.value; applyFilters(); });
+  pocFilter.addEventListener('change', ()=>{ state.filters.poc=pocFilter.value; applyFilters(); });
+  kevFilter.addEventListener('change', ()=>{ state.filters.kev=kevFilter.value; applyFilters(); });
+  ageOp.addEventListener('change', ()=>{ state.filters.ageOp=ageOp.value; applyFilters(); });
+  ageValue.addEventListener('input', ()=>{ state.filters.ageValue=ageValue.value; applyFilters(); });
+
+  rowsPerPageEl.addEventListener('change', ()=>{ state.rowsPerPage = rowsPerPageEl.value==='all'?'all':Number(rowsPerPageEl.value); render(); });
+  viewModeEl.addEventListener('change', ()=>{ state.view=viewModeEl.value; render(); });
+  descToggleEl.addEventListener('change', ()=>{ state.ui.showDesc=(descToggleEl.value==='on'); savePrefs(); render(); });
+
+  sortKeyEl.addEventListener('change', ()=>{ state.sortKey=sortKeyEl.value; applyFilters(); });
+  sortDirEl.addEventListener('change', ()=>{ state.sortDir=sortDirEl.value; applyFilters(); });
+
+  prevBtn.addEventListener('click', ()=>{ state.page=Math.max(1,state.page-1); render(); });
+  nextBtn.addEventListener('click', ()=>{ const rpp=(state.rowsPerPage==='all'?state.rows.length:Number(state.rowsPerPage)); const pages=Math.max(1, Math.ceil(state.rows.length / rpp)); state.page=Math.min(pages,state.page+1); render(); });
+
+  // Columns menu buttons
+  selectAllCols.addEventListener('click', ()=>{ for(const k of state.allKeys) state.columns[k]=true; renderColumnsMenu(); savePrefs(); render(); });
+  clearAllCols.addEventListener('click', ()=>{ for(const k of state.allKeys) state.columns[k]=false; state.columns.cve_id=true; renderColumnsMenu(); savePrefs(); render(); });
+  defaultCols.addEventListener('click', ()=>{ state.columns={}; for(const k of state.allKeys) state.columns[k]=false; Object.assign(state.columns, DEFAULT_COLUMNS); state.columnOrder = Object.keys(DEFAULT_COLUMNS).concat(Array.from(state.allKeys).filter(k=>!(k in DEFAULT_COLUMNS))); renderColumnsMenu(); savePrefs(); render(); });
+
+  // Saved views
+  saveViewBtn.addEventListener('click', ()=> saveCurrentView(viewNameEl.value.trim()));
+  deleteViewBtn.addEventListener('click', ()=> deleteView(savedViewsSelect.value));
+  loadViewBtn.addEventListener('click', ()=>{ const n=savedViewsSelect.value; if(!n){ setStatus('Select a view first.', true); return; } applyView(state.views[n]); setStatus(`Loaded view "${n}".`); });
+
+  // Theme & Controls collapse
+  themeToggle.addEventListener('click', ()=>{ const cur=document.documentElement.getAttribute('data-theme')||'light'; const next=cur==='light'?'dark':'light'; document.documentElement.setAttribute('data-theme', next); savePrefs(); });
+  toggleControlsBtn.addEventListener('click', ()=>{ state.ui.controlsCollapsed=!state.ui.controlsCollapsed; controlsPanel.classList.toggle('collapsed', state.ui.controlsCollapsed); savePrefs(); toggleControlsBtn.textContent = state.ui.controlsCollapsed ? '▸ Controls' : '▾ Controls'; });
+
+  // Reset
+  $('#resetBtn').addEventListener('click', ()=>{
+    searchBox.value=''; severityFilter.value=''; pocFilter.value='any'; kevFilter.value='any'; ageOp.value=''; ageValue.value='';
+    rowsPerPageEl.value='25'; viewModeEl.value='table'; sortKeyEl.value='created_at'; sortDirEl.value='desc'; descToggleEl.value='on';
+    state.filters={search:'', severity:'', poc:'any', kev:'any', ageOp:'', ageValue:''};
+    state.quick = {};
+    state.rowsPerPage=25; state.view='table'; state.sortKey='created_at'; state.sortDir='desc'; state.ui.showDesc=true; state.page=1;
+    state.columns={}; for(const k of state.allKeys) state.columns[k]=false; Object.assign(state.columns, DEFAULT_COLUMNS);
+    state.columnOrder = Object.keys(DEFAULT_COLUMNS).concat(Array.from(state.allKeys).filter(k=>!(k in DEFAULT_COLUMNS)));
+    renderColumnsMenu(); applyFilters(); setStatus('Filters reset.'); savePrefs();
+  });
+
+  // Export
+  $('#exportCsvBtn').addEventListener('click', ()=> exportCurrent('page','csv'));
+  $('#exportJsonBtn').addEventListener('click', ()=> exportCurrent('page','json'));
+
+  // Table CVE link -> modal
+  tbody.addEventListener('click', (e)=>{
+    const a = e.target.closest('a.cve-link');
+    if(a){ e.preventDefault(); showModalForUid(a.dataset.uid); }
+  });
+  // Card click -> modal
+  cardsWrap.addEventListener('click', (e)=>{
+    const card = e.target.closest('.cardx');
+    if(card){ showModalForUid(card.dataset.uid); }
+  });
+  // Modal closing
+  closeModalBtn.addEventListener('click', ()=> modalBackdrop.style.display='none');
+  modalBackdrop.addEventListener('click', (e)=>{ if(e.target===modalBackdrop) modalBackdrop.style.display='none'; });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') modalBackdrop.style.display='none'; });
+
+  // ======= Init =======
+  function init(){
+    loadPrefs();
+    renderColumnsMenu();
+    loadLocalSample(); // dev convenience
+    toggleControlsBtn.textContent = state.ui.controlsCollapsed ? '▸ Controls' : '▾ Controls';
+    setInterval(updateDates, 60*60*1000);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
